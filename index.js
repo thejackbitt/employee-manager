@@ -66,22 +66,64 @@ function formatQuery(res) {
 
     const colTotal = colHeaders + colDividers + colValues;
     return colTotal;
+};
+
+function queryRoles() {
+    const query = `SELECT title FROM role`;
+    return new Promise((resolve, reject) => {
+        db.query(query, (err, results) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(results);
+            }
+        });
+    });
 }
 
 function viewEmployee() {
-    console.log('Here are all current employees:')
-    const query = 'SELECT * FROM employee;';
+    const query = `
+    SELECT e.id, e.first_name, e.last_name, r.title AS title, d.name AS department, e.manager_id
+    FROM employee e
+    JOIN role r ON e.role_id = r.id
+    JOIN department d ON r.department_id = d.id;    
+    `;
   
     db.query(query, (err, results) => {
       if (err) {
         throw err;
       }
       console.log(formatQuery(results));
-    });
-}
+    })
+};
 
 function addEmployee() {
     console.log('Fill out all inputs to add an employee:')
+    inquirer
+        .prompt([
+            {
+                type: 'list',
+                message: 'Select the role of the employee',
+                name: 'role',
+                choices: [
+                    queryRoles().then(results => {
+                        console.log(results);
+                    }).catch(error => {
+                        console.error(error);
+                    })
+                ],
+            },
+            {
+                type: "input",
+                message: "Enter the first name of the employee",
+                name: "fname",
+            },
+            {
+                type: 'input',
+                message: 'Enter the last name of the employee',
+                name: 'lname',
+            }
+        ])
 }
 
 function updateEmployee() {
