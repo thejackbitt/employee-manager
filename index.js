@@ -1,4 +1,5 @@
 const inquirer = require("inquirer");
+
 const mysql = require("mysql2");
 
 const db = mysql.createConnection({
@@ -6,14 +7,7 @@ const db = mysql.createConnection({
     user: 'root',
     password: '%4p1bh)@7',
     database: 'mgmt_db'
-});
-
-db.connect((err) => {
-    if (err) {
-        throw err;
-    }
-    console.log('Connected to the database.');
-});
+  });
 
 console.log(`
 ___________________________________________________________
@@ -24,7 +18,7 @@ ___________________________________________________________
      | |____| | | | | | |_) | | (_) | |_| |  __/  __/
      |______|_| |_| |_| .__/|_|\\___/ \\__, |\\___|\\___|
                        | |            __/ |          
-          __  __       |_|           |___/                                              
+         __  __        |_|           |___/                                              
         |  \\/  |                                  
         | \\  / | __ _ _ __   __ _  __ _  ___ _ __ 
         | |\\/| |/ _\` | '_ \\ / _\` |/ _\` |/ _ \\ '__|
@@ -39,6 +33,43 @@ ___________________________________________________________
 
 mainMenu();
 
+function mainMenu() {
+    inquirer
+    .prompt([
+        {
+            type: "list",
+            message: "What would you like to do?",
+            name: "userSelect",
+            choices: [
+                'View All Employees', 
+                'Add Employee', 
+                'Update Employee Role', 
+                'View All Roles', 
+                'Add Role', 
+                'View All Departments', 
+                'Add Department'
+            ],
+        },
+    ])
+    .then(({ userSelect }) => {
+        const actionMap = {
+            'View All Employees': viewEmployee,
+            'Add Employee' : addEmployee,
+            'Update Employee Role': updateEmployee,
+            'View All Roles': viewRole,
+            'Add Role': addRole,
+            'View All Departments': viewDepartment,
+            'Add Department': addDepartment,
+        };
+        const action = actionMap[userSelect];
+        if (action) {
+            action();
+        } else {
+            console.log('Option not recognized. Please try again.');
+        }
+    })
+};
+
 function formatQuery(res) {
     const maxColumnWidth = {};
     Object.keys(res[0]).forEach(key => {
@@ -46,7 +77,7 @@ function formatQuery(res) {
             return row[key] === null ? 4 : row[key].toString().length;
         }), key.length);
     });
-
+    
     const colHeaders = Object.keys(maxColumnWidth)
         .map(key => key.padEnd(maxColumnWidth[key], ' '))
         .join(' | ') + '\n';
@@ -94,24 +125,6 @@ function queryManagers() {
     });
 }
 
-function getRoleID(roleName) {
-    const query = `SELECT r.id, r.title FROM role r`;
-    return new Promise((resolve, reject) => {
-        db.query(query, (err, results) => {
-            if (err) {
-                reject(err);
-            } else {
-                const match = results.find(role => role.title === roleName);
-                if (match) {
-                    resolve(match.id);
-                } else {
-                    reject('No matching role found');
-                }
-            }
-        });
-    });
-}
-
 function viewEmployee() {
     const query = `
     SELECT e.id, e.first_name, e.last_name, r.title AS title, d.name AS department, e.manager_id
@@ -119,12 +132,12 @@ function viewEmployee() {
     JOIN role r ON e.role_id = r.id
     JOIN department d ON r.department_id = d.id;    
     `;
-
+  
     db.query(query, (err, results) => {
-        if (err) {
-            throw err;
-        }
-        console.log(formatQuery(results));
+      if (err) {
+        throw err;
+      }
+      console.log(formatQuery(results));
     })
 };
 
@@ -144,7 +157,7 @@ function addEmployee() {
                 },
                 {
                     type: 'list',
-                    message: "Select a manager for the employee (if no manager, select 'null')",
+                    message: "Select a manager for the employee (if no manager, select 'None')",
                     name: "mgr",
                     choices: managerChoices
                 },
@@ -189,7 +202,6 @@ function addEmployee() {
 }
 
 
-
 function updateEmployee() {
     console.log('Select a registry to update:')
 }
@@ -209,38 +221,3 @@ function viewDepartment() {
 function addDepartment() {
     console.log('Fill out all inputs to add an department:')
 }
-
-
-function mainMenu() {
-    inquirer
-        .prompt([
-            {
-                type: "list",
-                message: "What would you like to do?",
-                name: "userSelect",
-                choices: [
-                    'View All Employees',
-                    'Add Employee',
-                    'Update Employee Role',
-                    'View All Roles',
-                    'Add Role',
-                    'View All Departments',
-                    'Add Department'
-                ],
-            },
-        ])
-        .then(({ userSelect }) => {
-            const actionMap = {
-                'View All Employees': viewEmployee,
-                'Add Employee': addEmployee,
-                'Update Employee Role': updateEmployee,
-                'View All Roles': viewRole,
-                'Add Role': addRole,
-                'View All Departments': viewDepartment,
-                'Add Department': addDepartment,
-            };
-            const action = actionMap[userSelect];
-            if (action) {
-                action();
-        }})
-    };
