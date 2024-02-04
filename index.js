@@ -6,14 +6,14 @@ const db = mysql.createConnection({
     user: 'root',
     password: '%4p1bh)@7',
     database: 'mgmt_db'
-  });
-  
-  db.connect((err) => {
+});
+
+db.connect((err) => {
     if (err) {
-      throw err;
+        throw err;
     }
     console.log('Connected to the database.');
-  });
+});
 
 console.log(`
 ___________________________________________________________
@@ -46,7 +46,7 @@ function formatQuery(res) {
             return row[key] === null ? 4 : row[key].toString().length;
         }), key.length);
     });
-    
+
     const colHeaders = Object.keys(maxColumnWidth)
         .map(key => key.padEnd(maxColumnWidth[key], ' '))
         .join(' | ') + '\n';
@@ -81,6 +81,37 @@ function queryRoles() {
     });
 }
 
+function queryManagers() {
+    const query = `SELECT e.first_name, e.last_name FROM employee e`;
+    return new Promise((resolve, reject) => {
+        db.query(query, (err, results) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(results);
+            }
+        });
+    });
+}
+
+function getRoleID(roleName) {
+    const query = `SELECT r.id, r.title FROM role r`;
+    return new Promise((resolve, reject) => {
+        db.query(query, (err, results) => {
+            if (err) {
+                reject(err);
+            } else {
+                const match = results.find(role => role.title === roleName);
+                if (match) {
+                    resolve(match.id);
+                } else {
+                    reject('No matching role found');
+                }
+            }
+        });
+    });
+}
+
 function viewEmployee() {
     const query = `
     SELECT e.id, e.first_name, e.last_name, r.title AS title, d.name AS department, e.manager_id
@@ -88,43 +119,76 @@ function viewEmployee() {
     JOIN role r ON e.role_id = r.id
     JOIN department d ON r.department_id = d.id;    
     `;
-  
+
     db.query(query, (err, results) => {
-      if (err) {
-        throw err;
-      }
-      console.log(formatQuery(results));
+        if (err) {
+            throw err;
+        }
+        console.log(formatQuery(results));
     })
 };
 
 function addEmployee() {
-    console.log('Fill out all inputs to add an employee:')
-    inquirer
-        .prompt([
-            {
-                type: 'list',
-                message: 'Select the role of the employee',
-                name: 'role',
-                choices: [
-                    queryRoles().then(results => {
-                        console.log(results);
-                    }).catch(error => {
-                        console.error(error);
-                    })
-                ],
-            },
-            {
-                type: "input",
-                message: "Enter the first name of the employee",
-                name: "fname",
-            },
-            {
-                type: 'input',
-                message: 'Enter the last name of the employee',
-                name: 'lname',
-            }
-        ])
+    console.log('Fill out all inputs to add an employee:');
+    queryRoles().then(roleResults => {
+        const roleChoices = roleResults.map(role => role.title);
+        queryManagers().then(managerResults => {
+            const managerChoices = managerResults.map(employee => `${employee.first_name} ${employee.last_name}`);
+            managerChoices.push('null');
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    message: 'Select the role of the employee',
+                    name: 'role',
+                    choices: roleChoices,
+                },
+                {
+                    type: 'list',
+                    message: "Select a manager for the employee (if no manager, select 'null')",
+                    name: "mgr",
+                    choices: managerChoices
+                },
+                {
+                    type: "input",
+                    message: "Enter the first name of the employee",
+                    name: "fname",
+                },
+                {
+                    type: 'input',
+                    message: 'Enter the last name of the employee',
+                    name: 'lname',
+                }
+            ])
+            .then(answers => {
+                const { lname, fname, mgr, role } = answers;
+                getRoleID(role).then(roleId => {
+                    let managerId = null;
+                    if (mgr !== 'null') {
+                    }
+                    const query = `INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)`;
+                    db.query(query, [fname, lname, roleId, managerId], (err, results) => {
+                        if (err) {
+                            console.error('Failed to add employee:', err);
+                            return;
+                        }
+                        console.log(`${fname} ${lname} has successfully been added.`);
+                    });
+                }).catch(error => {
+                    console.error('Error getting role ID:', error);
+                });
+            })
+            .catch(error => {
+                console.error('Error in prompts:', error);
+            });
+        }).catch(error => {
+            console.error('Error querying managers:', error);
+        });
+    }).catch(error => {
+        console.error('Error querying roles:', error);
+    });
 }
+
+
 
 function updateEmployee() {
     console.log('Select a registry to update:')
@@ -149,37 +213,34 @@ function addDepartment() {
 
 function mainMenu() {
     inquirer
-    .prompt([
-        {
-            type: "list",
-            message: "What would you like to do?",
-            name: "userSelect",
-            choices: [
-                'View All Employees', 
-                'Add Employee', 
-                'Update Employee Role', 
-                'View All Roles', 
-                'Add Role', 
-                'View All Departments', 
-                'Add Department'
-            ],
-        },
-    ])
-    .then(({ userSelect }) => {
-        const actionMap = {
-            'View All Employees': viewEmployee,
-            'Add Employee' : addEmployee,
-            'Update Employee Role': updateEmployee,
-            'View All Roles': viewRole,
-            'Add Role': addRole,
-            'View All Departments': viewDepartment,
-            'Add Department': addDepartment,
-        };
-        const action = actionMap[userSelect];
-        if (action) {
-            action();
-        } else {
-            console.log('Option not recognized. Please try again.');
-        }
-    })
-};
+        .prompt([
+            {
+                type: "list",
+                message: "What would you like to do?",
+                name: "userSelect",
+                choices: [
+                    'View All Employees',
+                    'Add Employee',
+                    'Update Employee Role',
+                    'View All Roles',
+                    'Add Role',
+                    'View All Departments',
+                    'Add Department'
+                ],
+            },
+        ])
+        .then(({ userSelect }) => {
+            const actionMap = {
+                'View All Employees': viewEmployee,
+                'Add Employee': addEmployee,
+                'Update Employee Role': updateEmployee,
+                'View All Roles': viewRole,
+                'Add Role': addRole,
+                'View All Departments': viewDepartment,
+                'Add Department': addDepartment,
+            };
+            const action = actionMap[userSelect];
+            if (action) {
+                action();
+        }})
+    };
